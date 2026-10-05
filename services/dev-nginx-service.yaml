@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: nginx-dev-service
+
+spec:
+  selector:
+    app: nginx-dev
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+  type: ClusterIP

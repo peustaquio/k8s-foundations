@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: app-config
+
+data:
+  APP_NAME: Pedro-Lab
+  APP_ENV: DEV
+  APP_VERSION: "v1.0"
