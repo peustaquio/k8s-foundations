@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: simon-config
+  namespace: simon
+
+data:
+  DB_HOST: postgres
+  DB_NAME: pedrolab

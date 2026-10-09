@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: simon
+  namespace: simon
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: simon
+
+  template:
+    metadata:
+      labels:
+        app: simon
+
+    spec:
+      containers:
+      - name: simon
+
+        image: simon-app:v9
+
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 5000
+
+        envFrom:
+        - configMapRef:
+            name: simon-config
+
+        - secretRef:
+            name: postgres-secret

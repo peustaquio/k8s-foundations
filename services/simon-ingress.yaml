@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: simon-ingress
+  namespace: simon
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+  - host: simon.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: simon
+            port:
+              number: 5000
