@@ -1,200 +1,695 @@
-k8s-foundations
-A hands-on Kubernetes learning lab built with RHEL 9, Docker and Kind.
+# k8s-foundations
+
+A hands-on Kubernetes learning lab built with **RHEL 9, Docker and Kind**.
 
 The main goal of this repository is not simply to deploy applications, but to understand how Kubernetes components work together, validate each layer independently, and practice troubleshooting in a real lab environment.
 
-Overview
-This lab was built incrementally.
+---
 
-The first phase focused on Kubernetes fundamentals using NGINX.
+## Overview
 
-The second phase applied those concepts to a real application: a Simon memory game built with Flask and PostgreSQL, originally running with Docker Compose and later deployed on Kubernetes.
+This lab was built incrementally in two phases:
 
-Phase 1 - Kubernetes Foundations
-The first part of the lab focused on understanding the main Kubernetes building blocks.
+1. **Kubernetes Foundations** using NGINX.
+2. **Simon Game on Kubernetes**, migrating an existing Flask + PostgreSQL application from Docker Compose to Kubernetes.
 
-Topics practiced:
+The focus throughout the lab was simple:
 
-Kind multi-node cluster
-Control plane and worker nodes
-Namespaces
-Deployments
-ReplicaSets
-Pods
-Services
-ConfigMaps
-Secrets
-PersistentVolumeClaims
-NGINX Ingress Controller
-Host-based routing
-Internal Kubernetes DNS
-Container networking
-Troubleshooting
-Basic architecture
+> Build one component, validate it, understand it, and only then move to the next layer.
+
+---
+
+# Phase 1 - Kubernetes Foundations
+
+The first phase focused on understanding the main Kubernetes building blocks.
+
+## Topics Practiced
+
+- Kind multi-node cluster
+- Control plane and worker nodes
+- Namespaces
+- Deployments
+- ReplicaSets
+- Pods
+- Services
+- ConfigMaps
+- Secrets
+- PersistentVolumeClaims (PVC)
+- NGINX Ingress Controller
+- Host-based routing
+- Kubernetes internal DNS
+- Container networking
+- Troubleshooting
+
+---
+
+## Basic Architecture
+
 The initial NGINX lab followed this request path:
 
-Notebook → Local DNS resolution → RHEL 9 → Docker → Kind → NGINX Ingress Controller → Ingress → Service → Pod
+```text
+Windows Notebook
+        |
+        v
+Local DNS resolution (hosts)
+        |
+        v
+RHEL 9
+        |
+        v
+Docker
+        |
+        v
+Kind
+        |
+        v
+NGINX Ingress Controller
+        |
+        v
+Ingress
+        |
+        v
+Service
+        |
+        v
+NGINX Pod
+```
 
-Ingress troubleshooting
+---
+
+## Ingress Troubleshooting
+
 One of the most valuable exercises in this lab was troubleshooting external access to the NGINX application.
 
-The application itself was healthy, but external connections initially failed.
+The NGINX application and Kubernetes resources were healthy, but the application was initially inaccessible from outside the cluster.
 
-The troubleshooting process included validating:
+The investigation included validating:
 
-Pod status
-Deployment status
+- Pods
+- Deployments
+- Services
+- Service endpoints
+- Ingress rules
+- Ingress Controller logs and configuration
+- Docker port mappings
+- Kubernetes node placement
+
+The problem was eventually isolated to the topology.
+
+Ports **80** and **443** were mapped through the Kind control-plane node, while the NGINX Ingress Controller was running on another worker node.
+
+After moving the Ingress Controller to the appropriate node, the behavior changed from:
+
+```text
+Connection refused
+        |
+        v
+HTTP 404
+        |
+        v
+Welcome to nginx!
+```
+
+Each result provided additional information about how far the request was traveling.
+
+The HTTP `404` was especially useful because it demonstrated that traffic was finally reaching the Ingress Controller.
+
+The final step was using the hostname configured in the Ingress rule:
+
+```text
+nginx-dev.local
+```
+
+The Windows `hosts` file provided local name resolution:
+
+```text
+nginx-dev.local
+        |
+        v
+RHEL 9 IP
+        |
+        v
+Ingress
+        |
+        v
 Service
-Service endpoints
-Ingress configuration
-NGINX Ingress Controller configuration
-Docker port mapping
-Node placement
-The root cause was related to topology.
+        |
+        v
+NGINX Pod
+```
 
-Ports 80 and 443 were mapped through the Kind control-plane node, while the NGINX Ingress Controller was running on a worker node.
+### Main troubleshooting lesson
 
-After scheduling the Ingress Controller on the control-plane node, connectivity progressed from:
+> Understand the complete request path first, then validate and eliminate one layer at a time.
 
-Connection refused → HTTP 404 → Welcome to nginx
+---
 
-The HTTP 404 was an important clue because it demonstrated that traffic was finally reaching the Ingress Controller.
+# Phase 2 - Simon Game on Kubernetes
 
-The final step was using the correct hostname configured in the Ingress rule.
+After validating the Kubernetes fundamentals with NGINX, the next objective was to deploy a real application.
 
-The Windows hosts file provided local name resolution:
+The **Simon Game** is a memory game built with:
 
-nginx-dev.local → RHEL 9 IP → Ingress → Service → NGINX Pod
+- Python
+- Flask
+- PostgreSQL
+- Docker
 
-This exercise reinforced an important troubleshooting principle:
+The application includes a leaderboard backed by PostgreSQL.
 
-Understand the complete request path first, then validate and eliminate one layer at a time.
+Originally, the complete environment was running with Docker Compose.
 
-Phase 2 - Simon Game on Kubernetes
-After validating the Kubernetes fundamentals with NGINX, the next goal was to deploy an existing application.
+---
 
-The Simon Game was originally running through Docker Compose with two main components:
+## Original Docker Compose Architecture
 
-Flask application
-PostgreSQL database
-Docker Compose architecture:
+```text
+Docker Compose
+|
++-- Simon / Flask
+|
++-- PostgreSQL
+    |
+    +-- Persistent Docker Volume
+```
 
-Simon / Flask → PostgreSQL → Docker persistent volume
+Instead of automatically converting the Compose environment, the Kubernetes version was built manually, component by component.
 
-The application also contains a leaderboard stored in PostgreSQL.
+This made it possible to understand what each Docker Compose feature becomes in Kubernetes.
 
-Kubernetes architecture
-The Docker Compose environment was migrated manually, component by component, instead of using an automated conversion tool.
+---
 
-The resulting architecture is:
+# Simon Kubernetes Architecture
 
-Notebook → simon.local → RHEL 9 → Kind → NGINX Ingress Controller → Simon Ingress → Simon Service → Simon Pod → PostgreSQL Service → PostgreSQL Pod → PersistentVolumeClaim
+The final application path is:
 
-Simon Kubernetes Components
-Namespace
-A dedicated namespace was created for the application:
+```text
+Windows Notebook
+        |
+        v
+simon.local
+        |
+        v
+RHEL 9
+        |
+        v
+Docker
+        |
+        v
+Kind
+        |
+        v
+NGINX Ingress Controller
+        |
+        v
+Simon Ingress
+        |
+        v
+Simon Service :5000
+        |
+        v
+Simon Pod
+        |
+        v
+Flask Application
+        |
+        v
+PostgreSQL Service :5432
+        |
+        v
+PostgreSQL Pod
+        |
+        v
+PersistentVolumeClaim
+```
 
+---
+
+## Namespace
+
+A dedicated namespace was created:
+
+```text
 simon
+```
 
-This keeps the Simon resources logically isolated from the other lab workloads.
+The namespace keeps the Simon resources logically isolated from the other workloads in the lab.
 
-PostgreSQL Secret
-PostgreSQL credentials are provided to the containers using a Kubernetes Secret.
+---
 
-The application receives values such as:
+## PostgreSQL Secret
 
+Database credentials are provided through a Kubernetes Secret.
+
+The application receives sensitive values such as:
+
+```text
 DB_USER
 DB_PASSWORD
-PostgreSQL Persistent Storage
-PostgreSQL uses a PersistentVolumeClaim so that database data is not tied directly to the lifecycle of the PostgreSQL Pod.
+```
 
-This separates:
+This separates credentials from normal application configuration.
 
-Pod lifecycle from Data lifecycle
+---
 
-PostgreSQL Deployment
-PostgreSQL runs as a Kubernetes workload using a Deployment.
+## PostgreSQL Persistent Storage
 
-The deployment uses the PostgreSQL container image and mounts persistent storage through the PVC.
+PostgreSQL uses a **PersistentVolumeClaim (PVC)**.
 
-PostgreSQL Service
-A ClusterIP Service exposes PostgreSQL internally to the Kubernetes cluster.
+This separates the lifetime of the database data from the lifetime of the PostgreSQL Pod.
 
-Instead of connecting directly to a Pod IP, the Simon application uses:
+Conceptually:
 
+```text
+Pod lifecycle
+      !=
+Data lifecycle
+```
+
+A Pod can be replaced while its persistent data remains available through the volume.
+
+---
+
+## PostgreSQL Deployment
+
+PostgreSQL runs as a Kubernetes Deployment using:
+
+```text
+postgres:16
+```
+
+The PostgreSQL container mounts the persistent storage provided by the PVC.
+
+---
+
+## PostgreSQL Service
+
+A `ClusterIP` Service exposes PostgreSQL internally.
+
+Instead of using the PostgreSQL Pod IP address, the Simon application uses:
+
+```text
 DB_HOST=postgres
+```
 
-Kubernetes internal DNS resolves the Service name.
+Kubernetes internal DNS resolves `postgres` to the PostgreSQL Service.
 
-This means the application does not need to know the IP address of the PostgreSQL Pod.
+Therefore:
 
-Simon ConfigMap
-Non-sensitive application configuration is stored in a ConfigMap.
+```text
+Simon Pod
+    |
+    | DB_HOST=postgres
+    v
+PostgreSQL Service
+    |
+    v
+PostgreSQL Pod
+```
 
-Examples:
+The application does not need to know the PostgreSQL Pod IP.
 
+---
+
+## Simon ConfigMap
+
+Non-sensitive configuration is stored in a ConfigMap.
+
+Examples include:
+
+```text
 DB_HOST
 DB_NAME
+```
+
 This separates application configuration from the container image.
 
-Simon Deployment
+---
+
+## Simon Deployment
+
 The Simon Flask application runs through its own Kubernetes Deployment.
 
-The application container receives configuration from:
+The application receives configuration from two sources:
 
-ConfigMap + Secret
+```text
+ConfigMap
+   +
+Secret
+   |
+   v
+Simon Deployment
+   |
+   v
+Simon Pod
+```
 
-The application listens on port 5000.
+The Flask application listens on:
 
-Simon Service
-A ClusterIP Service exposes the Simon application inside the Kubernetes cluster.
+```text
+5000
+```
 
-The Service provides a stable network endpoint even if the application Pod is recreated.
+The application image was built locally and loaded into the Kind cluster.
 
-Simon Ingress
-External HTTP access is provided through NGINX Ingress.
+---
 
-The application is exposed using:
+## Simon Service
 
-simon.local
+A `ClusterIP` Service exposes the Simon application inside Kubernetes.
 
-The Ingress routes requests to the Simon Service on port 5000.
+The Service listens on port `5000` and routes traffic to the Simon Pod.
 
-End-to-End Request Flow
-The complete application request path is:
+```text
+Simon Service :5000
+        |
+        v
+Simon Pod :5000
+```
 
-Windows Notebook ↓ hosts file ↓ simon.local ↓ RHEL 9 ↓ Docker ↓ Kind control-plane ↓ NGINX Ingress Controller ↓ Simon Ingress ↓ Simon Service ↓ Simon Pod ↓ Flask Application
+This provides a stable endpoint independently of the Pod IP.
 
-For database operations:
+---
 
-Flask Application ↓ PostgreSQL Service ↓ PostgreSQL Pod ↓ PVC
+## Internal Validation
 
-Validation Strategy
-An important principle used throughout this lab was:
+Before exposing the application through Ingress, the Simon Service was validated using port forwarding:
 
-Create one component, validate it, and only then move to the next layer.
+```bash
+kubectl port-forward svc/simon 5001:5000 -n simon
+```
 
-For the Simon application, the sequence was approximately:
+The application health endpoint was then tested:
 
-Create the namespace
-Create the PostgreSQL Secret
-Create the PostgreSQL PVC
-Deploy PostgreSQL
-Create the PostgreSQL Service
-Validate the database
-Create the Simon ConfigMap
-Load the Simon container image into Kind
-Deploy the Simon application
-Validate the application logs
-Create the Simon Service
-Test the Service through port forwarding
-Validate /health
-Create the Ingress
-Configure local hostname resolution
-Access the application from an external notebook
-The /health endpoint confirmed communication between the Flask application and PostgreSQL:
+```bash
+curl http://localhost:5001/health
+```
 
+Response:
+
+```json
 {
   "database": "connected",
   "status": "ok"
 }
+```
+
+This confirmed that the complete internal path was functioning:
+
+```text
+Service
+   |
+   v
+Simon Pod
+   |
+   v
+Flask
+   |
+   v
+PostgreSQL Service
+   |
+   v
+PostgreSQL Pod
+```
+
+---
+
+## Simon Ingress
+
+After validating the internal application path, an Ingress was created.
+
+The application hostname is:
+
+```text
+simon.local
+```
+
+The Ingress routes HTTP traffic to:
+
+```text
+simon.local
+     |
+     v
+Simon Service :5000
+     |
+     v
+Simon Pod :5000
+```
+
+Local hostname resolution was configured on the Windows notebook using the `hosts` file.
+
+The application was then successfully accessed through:
+
+```text
+http://simon.local
+```
+
+At this point, the application and its PostgreSQL-backed leaderboard were accessible from the external notebook through Kubernetes Ingress.
+
+---
+
+# Docker Compose to Kubernetes
+
+One of the objectives of this exercise was understanding how concepts from Docker Compose map into Kubernetes.
+
+### Docker Compose
+
+```text
+services.postgres
+services.simon
+environment variables
+Docker volume
+ports
+```
+
+### Kubernetes
+
+```text
+Deployments
+Services
+ConfigMaps
+Secrets
+PersistentVolumeClaim
+Ingress
+```
+
+The application architecture remained conceptually similar, while Kubernetes introduced orchestration and abstraction around the containers.
+
+---
+
+# Validation Strategy
+
+Every layer was created and validated before moving to the next one.
+
+The approximate deployment sequence was:
+
+```text
+1. Namespace
+        |
+        v
+2. PostgreSQL Secret
+        |
+        v
+3. PostgreSQL PVC
+        |
+        v
+4. PostgreSQL Deployment
+        |
+        v
+5. PostgreSQL Service
+        |
+        v
+6. Database validation
+        |
+        v
+7. Simon ConfigMap
+        |
+        v
+8. Simon image loaded into Kind
+        |
+        v
+9. Simon Deployment
+        |
+        v
+10. Simon logs validation
+        |
+        v
+11. Simon Service
+        |
+        v
+12. Port-forward validation
+        |
+        v
+13. /health validation
+        |
+        v
+14. Simon Ingress
+        |
+        v
+15. Local hostname resolution
+        |
+        v
+16. External browser access
+```
+
+The philosophy was:
+
+> Create → Validate → Understand → Continue
+
+---
+
+# Troubleshooting Approach
+
+One of the main lessons from this project was learning not to treat every error as simply a "Kubernetes problem."
+
+Instead, first visualize the complete architecture:
+
+```text
+Client
+  |
+  v
+DNS
+  |
+  v
+Host
+  |
+  v
+Container Runtime
+  |
+  v
+Kubernetes Node
+  |
+  v
+Ingress Controller
+  |
+  v
+Ingress
+  |
+  v
+Service
+  |
+  v
+Pod
+  |
+  v
+Application
+  |
+  v
+Database Service
+  |
+  v
+Database Pod
+  |
+  v
+Storage
+```
+
+Then determine which layers have already been validated.
+
+Useful commands practiced during the lab:
+
+```bash
+kubectl get pods -A
+kubectl get pods -o wide
+kubectl get deployments -A
+kubectl get svc -A
+kubectl get ingress -A
+kubectl get pvc -A
+
+kubectl describe pod <pod>
+kubectl describe svc <service>
+kubectl describe ingress <ingress>
+
+kubectl logs <pod>
+kubectl logs <pod> --previous
+```
+
+Additional tools used for validation:
+
+```bash
+curl
+ping
+docker ps
+docker images
+```
+
+The important part is not memorizing commands.
+
+The important part is answering:
+
+1. What is the expected request path?
+2. Which layers are confirmed working?
+3. Which layer has not yet been validated?
+4. At which layer does the observed behavior change?
+
+---
+
+# Key Lessons
+
+Some of the main lessons from this lab:
+
+- Pods are disposable.
+- Application state should not depend on the Pod lifecycle.
+- Services provide stable access to dynamic Pods.
+- Kubernetes DNS allows applications to use Service names instead of Pod IP addresses.
+- ConfigMaps separate normal configuration from application images.
+- Secrets separate sensitive configuration from normal configuration.
+- PVCs provide persistent storage independently of Pods.
+- Ingress provides HTTP routing into applications.
+- Host-based routing depends on the requested hostname.
+- A healthy Pod does not necessarily mean the complete application path is healthy.
+- Different errors can represent different stages of the request path.
+- Troubleshooting becomes easier when the complete architecture is understood first.
+- Validate each component before adding another layer.
+
+---
+
+# Next Steps
+
+Future improvements for this lab include:
+
+- [ ] Add readiness probes
+- [ ] Add liveness probes
+- [ ] Configure CPU requests and limits
+- [ ] Configure memory requests and limits
+- [ ] Intentionally test Pod self-healing
+- [ ] Test PostgreSQL persistence after Pod recreation
+- [ ] Experiment with multiple application replicas
+- [ ] Test application scaling
+- [ ] Improve secret management
+- [ ] Replace the Flask development server with a production WSGI server
+- [ ] Explore NetworkPolicies
+- [ ] Explore Helm
+- [ ] Deploy the architecture to a managed Kubernetes environment
+
+---
+
+# Why This Repository Exists
+
+This repository represents my practical Kubernetes learning journey.
+
+The objective is not to build the most complex cluster possible.
+
+The objective is to understand the fundamentals deeply enough that concepts such as:
+
+```text
+Deployment
+Service
+Pod
+ConfigMap
+Secret
+PVC
+Ingress
+DNS
+Networking
+```
+
+become natural parts of everyday troubleshooting.
+
+NGINX was used to learn the individual Kubernetes components.
+
+The Simon Game was used to connect those components into a complete application.
+
+The most important lesson so far is:
+
+> Kubernetes becomes much easier to troubleshoot once the complete path between the user, the application, and its dependencies can be visualized.
